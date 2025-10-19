@@ -28,10 +28,13 @@ const AdminRouter = require("./Router/AdminRouter");
 const ApplicationRouter = require("./Router/ApplicationRouter");
 
 // Connecting routes
-app.use("/api/v1/Jobs", authenticateUser, JobRouter);
-app.use("/api/v1/Users", authenticateUser, UserRouter);
-app.use("/api/v1/Auth", AuthRouter);
-app.use("/api/v1/Admin", authenticateUser, AdminRouter);
-app.use("/api/v1/Application", authenticateUser, ApplicationRouter);
+// Make public job listing available without authentication. Protected job actions
+// are enforced inside the router itself.
+// Use lowercase '/jobs' to keep routes consistent across client and server.
+app.use("/api/v1/jobs", JobRouter);
+app.use("/api/v1/users", authenticateUser, UserRouter);
+app.use("/api/v1/auth", AuthRouter);
+app.use("/api/v1/admin", authenticateUser, AdminRouter);
+app.use("/api/v1/application", authenticateUser, ApplicationRouter);
 
 module.exports = app;

@@ -5,12 +5,12 @@ const ApplicationSchema = new mongoose.Schema(
     {
         applicantId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "user",
+            ref: "User",
             required: true,
         },
         recruiterId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "user",
+            ref: "User",
             required: true,
         },
         jobId: {

@@ -53,18 +53,25 @@ module.exports.getCandidateAppliedJobs = async (req, res, next) => {
             queries
         );
 
-        // response
-        if (result.length !== 0) {
-            res.status(200).json({
-                status: true,
-                result,
-                totalJobs,
-                currentPage: page,
-                pageCount: pageCount || 1,
-            });
-        } else {
-            next(createError(500, "Job List is empty"));
-        }
+            // response
+            if (result.length !== 0) {
+                res.status(200).json({
+                    status: true,
+                    result,
+                    totalJobs,
+                    currentPage: page,
+                    pageCount: pageCount || 1,
+                });
+            } else {
+                res.status(200).json({
+                    status: true,
+                    result: [],
+                    totalJobs: 0,
+                    currentPage: page || 1,
+                    pageCount: 0,
+                    message: "No applications found",
+                });
+            }
     } catch (error) {
         next(createError(500, error.message));
     }
@@ -112,18 +119,23 @@ const getData = async (filters, queries) => {
 module.exports.getRecruiterPostJobs = async (req, res, next) => {
     const filter = { recruiterId: req.user._id };
     try {
-        const result = await ApplicationModel.find(filter).populate("jobId");
-        const totalJobs = await ApplicationModel.countDocuments(filter);
-        // response
-        if (result.length !== 0) {
-            res.status(200).json({
-                status: true,
-                totalJobs,
-                result,
-            });
-        } else {
-            next(createError(500, "No Job Found"));
-        }
+            const result = await ApplicationModel.find(filter).populate("jobId");
+            const totalJobs = await ApplicationModel.countDocuments(filter);
+            // response
+            if (result.length !== 0) {
+                res.status(200).json({
+                    status: true,
+                    totalJobs,
+                    result,
+                });
+            } else {
+                res.status(200).json({
+                    status: true,
+                    totalJobs: 0,
+                    result: [],
+                    message: "No applications found",
+                });
+            }
     } catch (error) {
         next(createError(500, error.message));
     }
@@ -131,21 +143,39 @@ module.exports.getRecruiterPostJobs = async (req, res, next) => {
 
 exports.applyInJob = async (req, res, next) => {
     try {
+        // derive applicantId from authenticated user
+        const applicantId = req.user._id;
+
+        // find the job to get recruiter id
+        const JobModel = require("../Model/JobModel");
+        const job = await JobModel.findById(req.body.jobId);
+        if (!job) return next(createError(400, "Job not found"));
+
+        const recruiterId = job.createdBy;
+
         const alreadyApplied = await ApplicationModel.findOne({
-            applicantId: req.body.applicantId,
+            applicantId,
             jobId: req.body.jobId,
         });
 
         if (alreadyApplied) {
-            next(createError(500, "Already Applied"));
-        } else {
-            const applied = new ApplicationModel(req.body);
-            const result = await applied.save();
-            res.status(201).json({
-                status: true,
-                message: "Applied Successfully",
-            });
+            return next(createError(400, "Already Applied"));
         }
+
+        const applicationData = {
+            applicantId,
+            recruiterId,
+            jobId: req.body.jobId,
+            resume: req.body.resume,
+            dateOfApplication: req.body.dateOfApplication || new Date(),
+        };
+
+        const applied = new ApplicationModel(applicationData);
+        await applied.save();
+        res.status(201).json({
+            status: true,
+            message: "Applied Successfully",
+        });
     } catch (error) {
         next(createError(500, error.message));
     }
@@ -156,32 +186,28 @@ module.exports.updateJobStatus = async (req, res, next) => {
     const data = req.body;
 
     try {
-        if (data?.recruiterId?.toString() === req?.user._id.toString()) {
-            console.log("same");
-            if (!mongoose.Types.ObjectId.isValid(id)) {
-                next(createError(400, "Invalid Job ID format"));
-            }
-
-            const isJobExists = await ApplicationModel.findOne({ _id: id });
-            if (!isJobExists) {
-                next(createError(500, "Job not found"));
-            } else {
-                const updatedJob = await ApplicationModel.findByIdAndUpdate(
-                    id,
-                    { $set: data },
-                    {
-                        new: true,
-                    }
-                );
-                res.status(200).json({
-                    status: true,
-                    message: "Job Updated",
-                    result: updatedJob,
-                });
-            }
-        } else {
-            next(createError(400, "Unauthorized user to update job"));
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return next(createError(400, "Invalid Job ID format"));
         }
+
+        const application = await ApplicationModel.findById(id);
+        if (!application) return next(createError(404, "Application not found"));
+
+        // only the recruiter who owns the application can update status
+        if (application.recruiterId?.toString() !== req.user._id.toString()) {
+            return next(createError(403, "Unauthorized user to update application"));
+        }
+
+        const updatedJob = await ApplicationModel.findByIdAndUpdate(
+            id,
+            { $set: data },
+            { new: true }
+        );
+        res.status(200).json({
+            status: true,
+            message: "Application Updated",
+            result: updatedJob,
+        });
     } catch (error) {
         next(createError(500, `something wrong: ${error.message}`));
     }

@@ -11,10 +11,11 @@ const Applicant = () => {
         data: jobs,
         error,
     } = useQuery({
-        queryKey: ["my-jobs"],
+        // use a distinct key for applicant applications to avoid colliding with job queries
+        queryKey: ["applicant-jobs"],
         queryFn: async () => {
             const response = await axios.get(
-                `https://full-stack-job-portal-server.vercel.app/api/v1/application/applicant-jobs`,
+                `http://localhost:3000/api/v1/application/applicant-jobs`,
                 { withCredentials: true }
             );
             return response?.data?.result;
@@ -33,7 +34,7 @@ const Applicant = () => {
         console.log(jobs);
     }
 
-    if (!jobs?.length === 0) {
+    if (!jobs?.length) {
         return <h2 className="">No job found</h2>;
     }
 
@@ -55,7 +56,7 @@ const Applicant = () => {
                             let i =
                                 index + 1 < 10 ? `0${index + 1}` : index + 1;
                             return (
-                                <tr key={jobs?.jobId?._id}>
+                                <tr key={job?.jobId?._id}>
                                     <td>{i}</td>
                                     <td>{job?.jobId?.position}</td>
                                     <td>{job?.jobId?.company}</td>

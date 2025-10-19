@@ -38,9 +38,10 @@ exports.getMe = async (req, res, next) => {
 
 exports.logOut = async (req, res, next) => {
     try {
+        const isProd = process.env.NODE_ENV === "production";
         res.cookie(process.env.COOKIE_NAME, "", {
-            sameSite: "none",
-            secure: true,
+            sameSite: isProd ? "None" : "Lax",
+            secure: isProd,
             httpOnly: true,
             expires: new Date(0), // Set to a date in the past
             path: "/", // Ensure this matches the path set during login
@@ -106,13 +107,14 @@ exports.loginUser = async (req, res, next) => {
                 const TOKEN = JWTGenerator(tokenObj);
 
                 const one_day = 1000 * 60 * 60 * 24; //since token expire in 1day
+                const isProd = process.env.NODE_ENV === "production";
 
                 res.cookie(process.env.COOKIE_NAME, TOKEN, {
                     expires: new Date(Date.now() + one_day),
-                    secure: true, // Sent only over HTTPS
+                    secure: isProd, // Sent only over HTTPS in production
                     httpOnly: true, // Restricts access from client-side scripts
                     signed: true, // Helps keep the cookie secure
-                    sameSite: "None",
+                    sameSite: isProd ? "None" : "Lax",
                 });
                 res.status(200).json({
                     status: true,

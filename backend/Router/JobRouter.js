@@ -11,19 +11,22 @@ const {
 const {
     userAuthorizationHandler,
 } = require("./../Middleware/UserAuthorizationMiddleware");
+const { authenticateUser } = require("./../Middleware/UserAuthenticationMiddleware");
 
 // Routes
 JobRouter.route("/")
     .get(JobController.getAllJobs)
     .post(
+        authenticateUser,
         userAuthorizationHandler("recruiter"),
         checkJobInput,
         inputValidationMiddleware,
         JobController.addJob
     )
-    .delete(JobController.deleteAllJobs);
+    .delete(authenticateUser, userAuthorizationHandler("recruiter"), JobController.deleteAllJobs);
 
-JobRouter.get("/my-jobs", JobController.getMyJobs);
+// my-jobs should be accessible only to authenticated users (they see their own jobs)
+JobRouter.get("/my-jobs", authenticateUser, userAuthorizationHandler("recruiter", "user"), JobController.getMyJobs);
 JobRouter.route("/:id")
     .get(JobController.getSingleJob)
     .patch(

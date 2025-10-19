@@ -31,6 +31,8 @@ const AddJob = () => {
         register,
         handleSubmit,
         reset,
+        setError,
+        clearErrors,
         formState: { errors },
     } = useForm();
 
@@ -52,10 +54,28 @@ const AddJob = () => {
         };
 
         console.log(newJob)
+        // client-side validation for tag inputs (they must be non-empty arrays)
+        if (!skills || skills.length === 0) {
+            setError("jobSkills", {
+                type: "manual",
+                message: "Job Skills is required",
+            });
+        }
+        if (!facilities || facilities.length === 0) {
+            setError("jobFacilities", {
+                type: "manual",
+                message: "Job Facilities is required",
+            });
+        }
+        if ((skills?.length || 0) === 0 || (facilities?.length || 0) === 0) {
+            setIsLoading(false);
+            return; // don't submit to server if validation fails
+        }
         // posting;
         try {
             const response = await axios.post(
-                "https://full-stack-job-portal-server.vercel.app/api/v1/jobs",
+                // backend mounts the router at "/api/v1/Jobs" (capital J), use same casing to avoid surprises
+                "http://localhost:3000/api/v1/Jobs",
                 newJob,
                 {
                     withCredentials: true,
@@ -73,11 +93,28 @@ const AddJob = () => {
             setFacilities([]);
             // navigate("/");
         } catch (error) {
+            // Log full error and server response for debugging
             console.log(error);
+            console.log(error?.response?.data);
+
+            // Extract validation errors (express-validator) or message from server response
+            let serverMessage = "Something went wrong";
+            const respData = error?.response?.data;
+            if (respData) {
+                if (respData.error && Array.isArray(respData.error)) {
+                    // join validation error messages
+                    serverMessage = respData.error.map((e) => e.msg).join(" | ");
+                } else if (respData.message) {
+                    serverMessage = respData.message;
+                } else {
+                    serverMessage = JSON.stringify(respData);
+                }
+            }
+
             Swal.fire({
                 icon: "error",
                 title: "Oops...",
-                text: error?.response?.data,
+                text: serverMessage,
             });
         }
         setIsLoading(false);
@@ -370,7 +407,10 @@ const AddJob = () => {
                                 </label>
                                 <TagsInput
                                     value={skills}
-                                    onChange={setSkills}
+                                    onChange={(val) => {
+                                        setSkills(val);
+                                        if (val && val.length > 0) clearErrors("jobSkills");
+                                    }}
                                     name="skills"
                                     placeHolder="HTML, CSS"
                                     separators={["Enter", ","]}
@@ -380,12 +420,20 @@ const AddJob = () => {
                                         input: "input-cls",
                                     }}
                                 />
+                                {errors?.jobSkills && (
+                                    <span className="text-[10px] font-semibold text-red-600 mt-1 pl-1 tracking-wider">
+                                        {errors?.jobSkills?.message}
+                                    </span>
+                                )}
                             </div>
                             <div className="row gap-y-2">
                                 <label htmlFor="position">Job Facilities</label>
                                 <TagsInput
                                     value={facilities}
-                                    onChange={setFacilities}
+                                    onChange={(val) => {
+                                        setFacilities(val);
+                                        if (val && val.length > 0) clearErrors("jobFacilities");
+                                    }}
                                     name="facilities"
                                     placeHolder="Type here"
                                     separators={["Enter", ","]}
@@ -395,6 +443,11 @@ const AddJob = () => {
                                         input: "input-cls",
                                     }}
                                 />
+                                {errors?.jobFacilities && (
+                                    <span className="text-[10px] font-semibold text-red-600 mt-1 pl-1 tracking-wider">
+                                        {errors?.jobFacilities?.message}
+                                    </span>
+                                )}
                             </div>
                         </div>
 
@@ -435,8 +488,9 @@ const AddJob = () => {
                             </label>
                             <input
                                 type="submit"
-                                value="submit"
+                                value={isLoading ? "Submitting..." : "submit"}
                                 className="btn"
+                                disabled={isLoading}
                             />
                         </div>
                     </form>

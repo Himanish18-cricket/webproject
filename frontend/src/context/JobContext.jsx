@@ -25,7 +25,7 @@ const JobContext = ({ children }) => {
 
     useEffect(() => {
         handleJobFetch(
-            `https://full-stack-job-portal-server.vercel.app/api/v1/jobs?page=1`
+            `http://localhost:3000/api/v1/jobs?page=1`
         );
     }, []);
     const passing = {

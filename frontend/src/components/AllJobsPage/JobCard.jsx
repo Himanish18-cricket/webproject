@@ -14,48 +14,89 @@ import { useUserContext } from "../../context/UserContext";
 
 import { Link } from "react-router-dom";
 import { postHandler } from "../../utils/FetchHandlers";
+import { useQueryClient } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 
 const JobCard = ({ job }) => {
     const date = dayjs(job?.jobDeadline).format("MMM Do, YYYY");
     const { user } = useUserContext();
 
+    const queryClient = useQueryClient();
+
     const handleApply = async (id) => {
         let currentDate = new Date();
         let date = currentDate.toISOString().slice(0, 10);
-        const appliedJob = {
-            applicantId: user?._id,
-            recruiterId: job?.createdBy,
-            jobId: id,
-            status: "pending",
-            dateOfApplication: date,
-            resume: user?.resume || "",
-        };
-        try {
-            const response = await postHandler({
-                url: "https://full-stack-job-portal-server.vercel.app/api/v1/application/apply",
-                body: appliedJob,
-            });
-            Swal.fire({
-                icon: "success",
-                title: "Hurray...",
-                text: response?.data?.message,
-            });
-        } catch (error) {
-            console.log(error);
-            if (error?.response?.data?.error) {
-                Swal.fire({
-                    icon: "error",
-                    title: "Oops...",
-                    text: error?.response?.data?.error[0].msg,
+        // If user profile doesn't have a resume, ask for resume URL before applying
+        const getResumeAndApply = async (resumeUrl) => {
+            const appliedJob = {
+                applicantId: user?._id,
+                recruiterId: job?.createdBy,
+                jobId: id,
+                status: "pending",
+                dateOfApplication: date,
+                resume: resumeUrl,
+            };
+            try {
+                const response = await postHandler({
+                    url: "http://localhost:3000/api/v1/application/apply",
+                    body: appliedJob,
                 });
-            } else {
                 Swal.fire({
-                    icon: "error",
-                    title: "Oops...",
-                    text: error?.response?.data,
+                    icon: "success",
+                    title: "Hurray...",
+                    text: response?.data?.message,
+                });
+
+                // Refresh applicant applications list so user's Applications view updates
+                try {
+                    queryClient.invalidateQueries(["applicant-jobs"]);
+                } catch (e) {
+                    console.log("Failed to invalidate query", e);
+                }
+            } catch (error) {
+                console.log(error);
+                if (error?.response?.data?.error) {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Oops...",
+                        text: error?.response?.data?.error[0].msg,
+                    });
+                } else {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Oops...",
+                        text: error?.response?.data,
+                    });
+                }
+            }
+        };
+
+        const existingResume = user?.resume;
+        if (!existingResume) {
+            const { value: resumeUrl } = await Swal.fire({
+                title: "Resume required",
+                text: "Please provide a resume URL to apply",
+                input: "url",
+                inputPlaceholder: "https://your-storage.com/your-resume.pdf",
+                showCancelButton: true,
+                inputValidator: (value) => {
+                    if (!value) return "You need to provide a resume URL";
+                    return null;
+                },
+            });
+
+            if (resumeUrl) {
+                await getResumeAndApply(resumeUrl);
+            } else {
+                // User cancelled
+                Swal.fire({
+                    icon: "info",
+                    title: "Cancelled",
+                    text: "Application was not submitted because resume is missing.",
                 });
             }
+        } else {
+            await getResumeAndApply(existingResume);
         }
     };
     return (
